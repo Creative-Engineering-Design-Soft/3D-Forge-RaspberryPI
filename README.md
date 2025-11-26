@@ -21,13 +21,40 @@ project/
 └── README.md # 설명 문서
 
 
+{
+  "api_base_url": "http://your-web-server:3000",
+  "poll_interval_seconds": 5,
+  "moonraker_url": "http://127.0.0.1:7125",
+  "gcode_save_dir": "/home/pi/printer_data/gcodes",
+  "report_interval_seconds": 10,
+  "device_id": "raspi-001",
+  "auth": {
+    "token": "",
+    "username": "",
+    "password": ""
+  }
+}
+🔍 필드 설명
+항목	설명
+api_base_url	외부 웹 API 서버 주소
+poll_interval_seconds	작업을 확인하는 주기(초)
+moonraker_url	Klipper Moonraker API 주소
+gcode_save_dir	G-code 다운로드 저장 경로
+report_interval_seconds	장치 상태 보고 주기
+device_id	서버에서 해당 장치를 식별하는 ID
+auth.token	Bearer Token 인증용
+auth.username/password	Basic Auth가 필요한 경우 사용
+
+
+
+
+
 
 # Raspberry Pi Print Agent - 설치 및 임베디드 설정
 
 ## 라즈베리파이에 필요한 설치
 
 1. 시스템 업데이트
-```bash
 sudo apt update
 sudo apt upgrade -y
 
