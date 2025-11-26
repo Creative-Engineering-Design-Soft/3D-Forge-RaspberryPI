@@ -13,17 +13,6 @@
 - **🧵 Multi-threading:** 소켓 수신 대기(Blocking)와 상태 전송(Non-blocking)을 병렬 처리
 
 ---
-
-## 🏗️ System Architecture
-
-```mermaid
-graph LR
-    Web[External Web Server] -- "Socket.IO (Command)" --> Pi[Bridge Agent (RPi 4)]
-    Pi -- "Socket.IO (Status)" --> Web
-    Pi -- "HTTP API (Upload/Query)" --> Moon[Moonraker (Locahost:7125)]
-    Moon -- "Control" --> Klipper[Klipper Firmware]
-```
-
 ---
 
 ## 🛠️ Installation
