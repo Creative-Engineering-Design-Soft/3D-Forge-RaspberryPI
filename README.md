@@ -13,6 +13,13 @@
 - **🧵 Multi-threading:** 소켓 수신 대기(Blocking)와 상태 전송(Non-blocking)을 병렬 처리
 
 ---
+/home/pi/
+ └── printer_bridge/           # [프로젝트 메인 폴더]
+      ├── app.py               # [실행 파일] 메인 루프 (python3 app.py로 실행)
+      ├── env.py               # [설정 파일] URL, 하드웨어 ID 등
+      ├── handler.py           # [로직 파일] 다운로드, Klipper 통신 함수들
+      └── requirements.txt     # [패키지 목록] 설치해야 할 라이브러리 리스트
+ └── printer_bridge/downloads/ # 다운로드한 파일들 보관.
 ---
 
 ## 🛠️ Installation
