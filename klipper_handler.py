@@ -19,19 +19,24 @@ def Log(title, content):
 # ===============================
 def getPrinterStatus():
     try:
-        r = mr_get("/printer/objects/query?heater_bed&extruder&toolhead&print_stats")
+        r = mr_get("/printer/objects/query?heater_bed&extruder&toolhead&print_stats&display_status")
+        status = r["result"]["status"]
 
-        bed = r["result"]["status"]["heater_bed"]["temperature"]
-        nozzle = r["result"]["status"]["extruder"]["temperature"]
+        bed = status["heater_bed"]["temperature"]
+        nozzle = status["extruder"]["temperature"]
 
-        pos = r["result"]["status"]["toolhead"]["position"]
+        pos = status["toolhead"]["position"]
         x, y, z = pos[0], pos[1], pos[2]
 
-        printing = 1 if r["result"]["status"]["print_stats"]["state"] == "printing" else 0
+        printing = 1 if status["print_stats"]["state"] == "printing" else 0
+
+        progress_float = status.get("display_status", {}).get("progress", 0)
+        progress_percent = int(progress_float * 100)
 
         return {
             "bedTemp": bed,
             "nozzleTemp": nozzle,
+            "present": progress_percent,
             "x": x,
             "y": y,
             "z": z,
@@ -43,6 +48,7 @@ def getPrinterStatus():
         return {
             "bedTemp": 0,
             "nozzleTemp": 0,
+            "present": 0,
             "x": 0, "y": 0, "z": 0,
             "isPrinting": 0,
             "isConnected": 0
