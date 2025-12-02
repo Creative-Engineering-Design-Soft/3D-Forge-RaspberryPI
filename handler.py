@@ -7,6 +7,7 @@ import klipper_handler as mr
 #  설정 및 전역 변수
 # ===============================
 OPERATOR = ['START', 'PAUSE', 'FINISH']
+current_op = OPERATOR[0]
 
 # 가장 최근에 다운로드(업로드)된 파일명을 기억하는 변수
 latest_filename = None 
@@ -31,7 +32,8 @@ def getStatus(data):
         "isConnected": printer_status["isConnected"],
         "x": printer_status["x"],
         "y": printer_status["y"],
-        "z": printer_status["z"]
+        "z": printer_status["z"],
+        "status": current_op
     }
 
 
@@ -39,10 +41,11 @@ def getStatus(data):
 #  SECTION 2 - 명령어 실행 (로직 수정됨)
 # ===============================
 def executeCommand(data):
-    global latest_filename
+    global latest_filename, current_op
     
     # 1. 데이터에서 operator 꺼내기
     raw_op = data.get("operator") # 예: "start", "START", "pause" ...
+    current_op = raw_op
     if not raw_op:
         Log("CommandError", "No operator provided")
         return
