@@ -24,7 +24,7 @@ def Log(title, content):
 # ===============================
 def getStatus(data):
     printer_status = mr.getPrinterStatus()
-    return {
+    res = {
         "hardwareId": env.HARDWARE_ID,
         "bedTemp": printer_status["bedTemp"],
         "nozzleTemp": printer_status["nozzleTemp"],
@@ -36,7 +36,8 @@ def getStatus(data):
         "z": printer_status["z"],
         "status": current_op
     }
-
+    print(res)
+    return res
 
 # ===============================
 #  SECTION 2 - 명령어 실행 (로직 수정됨)
@@ -79,8 +80,8 @@ def executeCommand(data):
 
     # --- [PAUSE] 일시정지 ---
     elif op == 'PAUSE':
-        mr.sendGcode("PAUSE")
-        Log("Action", "Paused Print")
+        mr.stopPrint()
+        Log("Action", "Canceled/Finished Print")
 
     # --- [FINISH] 강제 종료 (취소) ---
     elif op == 'FINISH':
