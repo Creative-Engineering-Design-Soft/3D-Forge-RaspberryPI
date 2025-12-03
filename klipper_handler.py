@@ -31,7 +31,7 @@ def getPrinterStatus():
         printing = 1 if status["print_stats"]["state"] == "printing" else 0
 
         progress_float = status.get("display_status", {}).get("progress", 0)
-        progress_percent = int(progress_float * 100)
+        progress_percent = (progress_float * 100)
 
         return {
             "bedTemp": bed,
