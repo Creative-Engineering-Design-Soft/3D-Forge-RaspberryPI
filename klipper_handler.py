@@ -36,7 +36,7 @@ def getPrinterStatus():
         return {
             "bedTemp": bed,
             "nozzleTemp": nozzle,
-            "present": progress_percent,
+            "percent": progress_percent,
             "x": x,
             "y": y,
             "z": z,
@@ -48,7 +48,7 @@ def getPrinterStatus():
         return {
             "bedTemp": 0,
             "nozzleTemp": 0,
-            "present": 0,
+            "percent": 0,
             "x": 0, "y": 0, "z": 0,
             "isPrinting": 0,
             "isConnected": 0

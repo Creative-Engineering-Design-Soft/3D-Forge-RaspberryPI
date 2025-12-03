@@ -30,7 +30,7 @@ def getStatus(data):
         "nozzleTemp": printer_status["nozzleTemp"],
         "isPrinting": printer_status["isPrinting"],
         "isConnected": printer_status["isConnected"],
-        "present": printer_status["present"],
+        "percent": printer_status["percent"],
         "x": printer_status["x"],
         "y": printer_status["y"],
         "z": printer_status["z"],
