@@ -1,6 +1,7 @@
 import env
 import requests
 import os
+import datatime
 import klipper_handler as mr
 
 # ===============================
@@ -17,6 +18,19 @@ is_downloading = False
 
 def Log(title, content):
     print(f"[ {title} ] >> {content}")
+    
+    # [수정] "Action" 로그 중 정지/취소 관련 내용은 stop_log.txt에 저장
+    if "Action" in title and ("Canceled" in str(content) or "Finished" in str(content) or "Paused" in str(content)):
+        try:
+            timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            # 현재 파일 위치 기준 절대 경로로 저장 (찾기 쉽게)
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            log_path = os.path.join(current_dir, "stop_log.txt")
+            
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(f"[{timestamp}] [ {title} ] >> {content}\n")
+        except Exception:
+            pass
 
 
 # ===============================

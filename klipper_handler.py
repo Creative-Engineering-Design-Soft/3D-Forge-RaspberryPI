@@ -1,17 +1,34 @@
 import requests
 import os
 import json
+import datetime
 
 MOONRAKER_URL = "http://localhost:7125"
 
 def mr_get(endpoint):
-    return requests.get(f"{MOONRAKER_URL}{endpoint}").json()
+    return requests.get(f"{MOONRAKER_URL}{endpoint}", timeout=5).json()
 
 def mr_post(endpoint, data=None):
-    return requests.post(f"{MOONRAKER_URL}{endpoint}", json=data).json()
+    response = requests.post(f"{MOONRAKER_URL}{endpoint}", json=data, timeout=5)
+    
+    if response.status_code != 200:
+        print(f"[ API Error ] >> {endpoint} Failed! Status: {response.status_code}, Body: {response.text}")
+    
+    return response.json()
 
 def Log(title, content):
+    # 1. 기본적으로 콘솔(PM2 로그)에는 무조건 출력
     print(f"[ {title} ] >> {content}")
+
+    # 2. 'Stop', 'Cancel', 'FORCE' 같은 단어가 포함된 경우에만 파일로 저장
+    if "Stop" in title or "STOP" in str(content) or "CANCEL" in str(content) or "FORCE" in str(content):
+        try:
+            timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            # 'stop_log.txt' 파일에 이어쓰기(append) 모드로 저장
+            with open("stop_log.txt", "a", encoding="utf-8") as f:
+                f.write(f"[{timestamp}] [ {title} ] >> {content}\n")
+        except Exception:
+            pass # 파일 저장 실패해도 서버는 멈추지 않게 함
 
 
 # ===============================
@@ -98,6 +115,24 @@ def sendGcode(cmd: str):
 # ===============================
 #  프린트 중지/취소
 # ===============================
+#def stopPrint():
+#    mr_post("/printer/print/cancel")
+#    Log("Print", "Canceled")
+
+# ===============================
+#  프린트 중지/취소 (수정됨)
+# ===============================
 def stopPrint():
-    mr_post("/printer/print/cancel")
-    Log("Print", "Canceled")
+    try:
+        Log("Print", "Attempting to STOP...")
+        
+        res1 = mr_post("/printer/gcode/script", {"script": "CANCEL_PRINT"})
+        Log("Debug", f"CANCEL_PRINT Result: {res1}")
+
+        res2 = mr_post("/printer/gcode/script", {"script": "SDCARD_RESET_FILE"})
+        Log("Debug", f"SDCARD_RESET Result: {res2}")
+
+
+        Log("Print", "Sent FORCE STOP commands")
+    except Exception as e:
+        Log("StopError", e)
