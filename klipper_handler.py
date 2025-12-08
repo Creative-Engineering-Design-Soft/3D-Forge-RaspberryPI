@@ -1,34 +1,40 @@
 import requests
 import os
 import json
-import datetime
+import datetime # [필수] 날짜 기록용
 
 MOONRAKER_URL = "http://localhost:7125"
 
+# [수정] timeout을 5초로 넉넉하게 설정 (네트워크 지연 대비)
 def mr_get(endpoint):
     return requests.get(f"{MOONRAKER_URL}{endpoint}", timeout=5).json()
 
 def mr_post(endpoint, data=None):
-    response = requests.post(f"{MOONRAKER_URL}{endpoint}", json=data, timeout=5)
-    
-    if response.status_code != 200:
-        print(f"[ API Error ] >> {endpoint} Failed! Status: {response.status_code}, Body: {response.text}")
-    
-    return response.json()
+    return requests.post(f"{MOONRAKER_URL}{endpoint}", json=data, timeout=5).json()
 
+# [수정] 로그 함수 업그레이드 (파일 저장 기능 추가)
 def Log(title, content):
-    # 1. 기본적으로 콘솔(PM2 로그)에는 무조건 출력
+    # 1. 기본 콘솔 출력
     print(f"[ {title} ] >> {content}")
 
-    # 2. 'Stop', 'Cancel', 'FORCE' 같은 단어가 포함된 경우에만 파일로 저장
-    if "Stop" in title or "STOP" in str(content) or "CANCEL" in str(content) or "FORCE" in str(content):
-        try:
-            timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            # 'stop_log.txt' 파일에 이어쓰기(append) 모드로 저장
-            with open("stop_log.txt", "a", encoding="utf-8") as f:
+    try:
+        timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        current_dir = os.path.dirname(os.path.abspath(__file__)) # 현재 파일 위치 기준
+
+        # 2. 정지/취소 로그 저장 (stop_log.txt)
+        if "Stop" in title or "STOP" in str(content) or "CANCEL" in str(content) or "FORCE" in str(content):
+            log_path = os.path.join(current_dir, "stop_log.txt")
+            with open(log_path, "a", encoding="utf-8") as f:
                 f.write(f"[{timestamp}] [ {title} ] >> {content}\n")
-        except Exception:
-            pass # 파일 저장 실패해도 서버는 멈추지 않게 함
+
+        # 3. [신규] 업로드 관련 로그 저장 (upload_log.txt)
+        if "Upload" in title:
+            log_path = os.path.join(current_dir, "upload_log.txt")
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(f"[{timestamp}] [ {title} ] >> {content}\n")
+
+    except Exception:
+        pass # 파일 저장 실패해도 서버는 멈추지 않음
 
 
 # ===============================
@@ -36,6 +42,7 @@ def Log(title, content):
 # ===============================
 def getPrinterStatus():
     try:
+        # [수정] 쿼리 타임아웃도 적용됨 (mr_get 내부에서 처리)
         r = mr_get("/printer/objects/query?heater_bed&extruder&toolhead&print_stats&display_status")
         status = r["result"]["status"]
 
@@ -48,7 +55,7 @@ def getPrinterStatus():
         printing = 1 if status["print_stats"]["state"] == "printing" else 0
 
         progress_float = status.get("display_status", {}).get("progress", 0)
-        progress_percent = (progress_float * 100)
+        progress_percent = int(progress_float * 100)
 
         return {
             "bedTemp": bed,
@@ -61,7 +68,7 @@ def getPrinterStatus():
             "isConnected": 1,
         }
     except Exception as e:
-        Log("KlipperStatusError", e)
+        Log("KlipperStatusError", f"Connection Lost: {e}")
         return {
             "bedTemp": 0,
             "nozzleTemp": 0,
@@ -73,7 +80,7 @@ def getPrinterStatus():
 
 
 # ===============================
-#  파일 업로드 (출력은 안 함) - 수정됨
+#  파일 업로드 (수정됨)
 # ===============================
 def uploadFile(local_path):
     try:
@@ -82,16 +89,23 @@ def uploadFile(local_path):
         
         with open(local_path, "rb") as f:
             files = {"file": (filename, f, "application/octet-stream")}
-            requests.post(url, files=files)
+            # 파일 업로드 등 큰 작업은 시간을 넉넉하게 (30초)
+            response = requests.post(url, files=files, timeout=30)
+            
+            # 응답 코드 확인
+            if response.status_code == 201: # 201 Created
+                Log("Upload", f"Uploaded ready: {filename}")
+                return filename
+            else:
+                Log("UploadError", f"Failed with status code: {response.status_code}, response: {response.text}")
+                return None
 
-        Log("Upload", f"Uploaded ready: {filename}")
-        return filename # 파일명을 반환해서 handler가 기억하게 함
     except Exception as e:
         Log("UploadError", e)
         return None
 
 # ===============================
-#  파일명으로 출력 시작 - 신규 추가
+#  파일명으로 출력 시작
 # ===============================
 def startPrint(filename):
     try:
@@ -111,13 +125,6 @@ def sendGcode(cmd: str):
     except Exception as e:
         Log("GcodeError", e)
 
-
-# ===============================
-#  프린트 중지/취소
-# ===============================
-#def stopPrint():
-#    mr_post("/printer/print/cancel")
-#    Log("Print", "Canceled")
 
 # ===============================
 #  프린트 중지/취소 (수정됨)
