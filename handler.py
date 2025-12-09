@@ -4,6 +4,7 @@ import os
 import datetime
 import re
 import klipper_handler as mr
+from urllib.parse import urlparse, parse_qs # [추가] URL 파싱용
 
 # ===============================
 #  설정 및 전역 변수
@@ -63,21 +64,35 @@ def getStatus(data):
 
 
 # ===============================
-# GOOGLE DRIVE DOWNLOADER
+# GOOGLE DRIVE DOWNLOADER (수정됨)
 # ===============================
 def download_from_google_drive(url, dst_path):
     Log("GDrive", f"Detected Google Drive: {url}")
 
     session = requests.Session()
 
-    # 1. 파일 ID 추출
+    # [수정] 1. 파일 ID 추출 로직 강화 (uc?id= 패턴 지원)
+    file_id = None
+    
+    # 패턴 1: /d/XXXXX
     match = re.search(r"/d/([^/]+)", url)
-    if not match:
-        Log("GDriveError", "File ID not found")
+    if match:
+        file_id = match.group(1)
+    else:
+        # 패턴 2: id=XXXXX (쿼리 파라미터)
+        try:
+            parsed_url = urlparse(url)
+            params = parse_qs(parsed_url.query)
+            if 'id' in params:
+                file_id = params['id'][0]
+        except:
+            pass
+
+    if not file_id:
+        Log("GDriveError", "File ID not found in URL")
         return None
 
-    file_id = match.group(1)
-    Log("GDrive", f"File ID: {file_id}")
+    Log("GDrive", f"Extracted File ID: {file_id}")
 
     base = "https://drive.google.com/uc?export=download"
 
@@ -92,17 +107,21 @@ def download_from_google_drive(url, dst_path):
 
     # 3. confirm 토큰이 있으면 다시 요청
     if token:
-        Log("GDrive", f"Confirm token: {token}")
+        Log("GDrive", f"Confirm token found: {token}")
         response = session.get(base, params={"id": file_id, "confirm": token}, stream=True)
 
     # 4. 다운로드 저장
     try:
-        with open(dst_path, "wb") as f:
-            for chunk in response.iter_content(32768):
-                if chunk:
-                    f.write(chunk)
-        Log("GDrive", f"Saved: {dst_path}")
-        return dst_path
+        if response.status_code == 200:
+            with open(dst_path, "wb") as f:
+                for chunk in response.iter_content(32768):
+                    if chunk:
+                        f.write(chunk)
+            Log("GDrive", f"Saved successfully: {dst_path}")
+            return dst_path
+        else:
+            Log("GDriveError", f"Download failed code: {response.status_code}")
+            return None
     except Exception as e:
         Log("GDriveError", str(e))
         return None
@@ -163,16 +182,18 @@ def downloadFile(data):
     is_downloading = True
 
     # -------------------------------
-    # 1) 절대 URL인지 확인 (핵심 FIX)
+    # 1) 절대 URL인지 확인 & 파일명 설정 (수정됨)
     # -------------------------------
     if filepath.startswith("http://") or filepath.startswith("https://"):
         file_url = filepath
+        # [수정] URL인 경우 고정된 파일명 사용 (특수문자 문제 방지)
+        filename = "downloaded_model.gcode" 
     else:
         base = env.SERVER_URL.rstrip('/')
         endpoint = filepath.replace("\\", "/").lstrip('/')
         file_url = f"{base}/{endpoint}"
+        filename = os.path.basename(filepath)
 
-    filename = os.path.basename(filepath)
     current_dir = os.path.dirname(os.path.abspath(__file__))
     save_dir = os.path.join(current_dir, "downloads")
     save_path = os.path.join(save_dir, filename)
@@ -197,14 +218,21 @@ def downloadFile(data):
 
             if isinstance(json_data, dict) and "result" in json_data and "filePath" in json_data["result"]:
                 real_url = json_data["result"]["filePath"]
+                
+                # [추가] JSON 데이터에 파일명(name)이 있다면 그걸 사용
+                if "name" in json_data["result"]:
+                    filename = json_data["result"]["name"]
+                    save_path = os.path.join(save_dir, filename) # 경로 재설정
+
                 Log("Download", f"Redirect URL: {real_url}")
 
                 # Google Drive 링크면 전용 다운로더 사용
                 if "drive.google.com" in real_url:
                     saved = download_from_google_drive(real_url, save_path)
                     if not saved:
-                        Log("DownloadError", "Google Drive download failed")
+                        Log("DownloadError", "Google Drive download failed (Check ID parsing)")
                         return
+                    # 구글 드라이브 함수에서 이미 저장했으므로 final_content는 None 유지
                 else:
                     r2 = requests.get(real_url, allow_redirects=True, timeout=60)
                     if r2.status_code == 200:
@@ -213,12 +241,17 @@ def downloadFile(data):
                         Log("DownloadError", f"Real download failed: {r2.status_code}")
                         return
 
+            else:
+                # JSON 형식이지만 링크가 없으면 원본 내용을 파일로 저장
+                Log("Download", "JSON detected but no filePath. Saving raw content.")
+                final_content = response.content
+
         except ValueError:
             # JSON이 아니면 바로 파일
             final_content = response.content
 
         # -------------------------------
-        # 3) 파일 저장
+        # 3) 파일 저장 (Google Drive 아닐 때만)
         # -------------------------------
         if final_content:
             with open(save_path, "wb") as f:
@@ -226,12 +259,15 @@ def downloadFile(data):
             Log("Download", f"Saved ({len(final_content)} bytes)")
 
         # -------------------------------
-        # 4) Moonraker 업로드
+        # 4) Moonraker 업로드 (파일이 존재할 때만)
         # -------------------------------
-        uploaded_name = mr.uploadFile(save_path)
-        if uploaded_name:
-            latest_filename = uploaded_name
-            Log("Ready", f"Standby for print: {latest_filename}")
+        if os.path.exists(save_path) and os.path.getsize(save_path) > 0:
+            uploaded_name = mr.uploadFile(save_path)
+            if uploaded_name:
+                latest_filename = uploaded_name
+                Log("Ready", f"Standby for print: {latest_filename}")
+        else:
+            Log("DownloadError", "File save failed or empty")
 
     except Exception as e:
         Log("Exception", f"Download failed: {e}")
@@ -249,10 +285,9 @@ def handleTunnel(data):
         cmd = data
     elif isinstance(data, dict):
         cmd = data.get("script") or data.get("cmd")
-
+    
     if cmd:
         mr.sendGcode(cmd)
         Log("Tunnel", f"Sent: {cmd}")
     else:
         Log("TunnelError", "Invalid data")
-
